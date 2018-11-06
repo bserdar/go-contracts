@@ -281,6 +281,22 @@ type Struct struct {
 
 type MethodList []Func
 
+// Check if every method in m exists in t
+func (m MethodList) SubsetOf(t MethodList) bool {
+	for _, mth := range m {
+		if destMth, ok := t.Find(mth.Name); ok {
+			// Method return types and arg list must match
+			if !mth.Args.Matches(destMth.Args) ||
+				!mth.Return.Matches(destMth.Return) {
+				return false
+			}
+		} else {
+			return false
+		}
+	}
+	return true
+}
+
 // Instantiate a method list using the type assignments in scope
 func (v MethodList) InstantiateWithScope(scope *Scope) (MethodList, error) {
 	ret := MethodList{}
@@ -395,17 +411,7 @@ func (s Interface) ImplementedBy(t Type) bool {
 	// If s has any methods, then t must be a struct
 	if len(s.Methods) > 0 {
 		if cStruct, ok := t.(Struct); ok {
-			for _, mth := range s.Methods {
-				if structMth, ok := cStruct.Methods.Find(mth.Name); ok {
-					// Method return types and arg list must match
-					if !mth.Args.Matches(structMth.Args) ||
-						!mth.Return.Matches(structMth.Return) {
-						return false
-					}
-				} else {
-					return false
-				}
-			}
+			return s.Methods.SubsetOf(cStruct.Methods)
 		}
 	}
 	return true
@@ -499,11 +505,19 @@ type InterfaceContract struct {
 
 /*
 
-A type satisfies an interface contract if it implements the interface
+A type satisfies an interface contract if it implements the interface. Here:
+
+ * intf must be a concrete type. Is is being used to instantiate a type
+ * contract may or may not be parameterized
 
 */
 
 func (c InterfaceContract) SatisfiedBy(contract *Contract, intf Type) bool {
+	// intf must be a concrete type
+	if IsParameterized(intf) {
+		return false
+	}
+
 	return false
 }
 
