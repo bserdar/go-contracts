@@ -433,31 +433,6 @@ type TypeArg struct {
 
 type TypeArgList []TypeArg
 
-// Resolve a type arg list using the type assignments in the current
-// scope
-func (l TypeArgList) Resolve(scope *Scope) ([]Type, error) {
-	ret := make([]Type, 0, len(l))
-	for _, typeArg := range l {
-		// There must be a type in scope with this name
-		assignedType := scope.Get(typeArg.Name)
-		if assignedType == nil {
-			return nil, fmt.Errorf("Cannot instantiate: %s not bound", typeArg.Name)
-		}
-
-		// Must instantiate with concrete types
-		if IsParameterized(assignedType) {
-			return nil, fmt.Errorf("Cannot instantiate: %s is parameterized", assignedType.TypeName())
-		}
-
-		// Type contract must be satisfied
-		if !typeArg.Contract.SatisfiedBy(assignedType) {
-			return nil, fmt.Errorf("Type %s does not satisfy contract for %s", assignedType.TypeName(), typeArg.Name)
-		}
-		ret = append(ret, assignedType)
-	}
-	return ret, nil
-}
-
 /*
 
 Use a list of existing types to specify a contract. A contract can be
@@ -476,6 +451,45 @@ type Contract struct {
 // SatisfiedBy method that checks if a type satisfies the contract
 type ContractItem interface {
 	SatisfiedBy(*Contract, Type) bool
+}
+
+// Infer is used for type inference. The contract type is a type from
+// the contract. The concrete type is a matching type from the type
+// passed into the contract for validation.
+//
+// If the contractType is a parameterized type reference, then its
+// type is assigned to the concrete type.
+//
+// If the contractType is a concrete type, then it must be compatible
+// with concreteType
+func Infer(typeInference *Scope, contractType, concreteType Type) bool {
+	if IsParameterized(contractType) {
+	}
+}
+
+// Tries to infer the parameterized types of the contract using the
+// signature of a method. The contractMethod is the interface method declared in the contract..
+// The method is the concrete type method passed in for contract validation.
+func InferFromMethod(typeInference *Scope, contractMethod, method Func) bool {
+	if len(contractMethod.Args) != len(method.Args) {
+		return false
+	}
+	if len(contractMethod.Return) != len(method.Return) {
+		return false
+	}
+	for i, contractArg := range contractMethod.Args {
+		methodArg := method.Args[i]
+		if !Infer(typeInference, contractArg.Type, methodArg.Type) {
+			return false
+		}
+	}
+	for i, contractRet := range contractMethod.Return {
+		methodRet := method.Return[i]
+		if !Infer(typeInference, contractRet.Type, methodRet.Type) {
+			return false
+		}
+	}
+	return true
 }
 
 /*
